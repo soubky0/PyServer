@@ -1,140 +1,67 @@
-You are helping develop a Python code execution sandbox server called PyServer using Go. Here's the current context and progress:
+You are analyzing a Go codebase for PyServer, a Python code execution sandbox server. The code implements session management and code execution with safety features. Here's the key context:
 
-CURRENT IMPLEMENTATION:
-```go
-package session
+Project Overview:
+- Purpose: Run Python code in isolated sessions with safety constraints
+- Core Features: Session management, code execution, timeout handling
+- Language: Go, interfacing with Python
 
-import (
-    "os/exec"
-    "sync"
-    "time"
-    "github.com/google/uuid"
-)
+Key Requirements:
+1. Resource Management:
+   - 5-minute session lifetime
+   - 2-second execution timeout per code block
+   - Separate stdout/stderr capture
 
-type Session struct {
-    ID        string
-    Process   *exec.Cmd
-    CreatedAt time.Time
-    Expiry    time.Time
-}
+2. Session Handling:
+   - UUID-based session identification
+   - Concurrent session support with mutex protection
+   - State preservation between executions
+   - Interactive Python interpreter per session
 
-type SessionManager struct {
-    sessions map[string]*Session
-    mu       sync.RWMutex
-}
+3. Safety Features:
+   - Execution timeout protection
+   - Proper process and resource cleanup
+   - Error handling for process operations
 
-func New() *SessionManager {
-    return &SessionManager{
-        sessions: make(map[string]*Session),
-    }
-}
+Code Structure:
+The implementation consists of two main types:
+1. Session: Represents a Python interpreter instance
+2. SessionManager: Handles session lifecycle and concurrent access
 
-func (m *SessionManager) Create() *Session {
-    m.mu.Lock()
-    defer m.mu.Unlock()
+Key Implementation Details:
+1. Process Management:
+   - Uses os/exec to manage Python processes
+   - Maintains stdin/stdout/stderr pipes
+   - Handles process creation and cleanup
 
-    id := uuid.New().String()
-    session := &Session{
-        ID:        id,
-        Process:   exec.Command("python3", "-iq"),
-        CreatedAt: time.Now(),
-        Expiry:    time.Now().Add(5 * time.Minute),
-    }
-    m.sessions[id] = session
-    return session
-}
+2. Code Execution:
+   - Uses markers (__END__) to track execution completion
+   - Implements timeout using context
+   - Handles output parsing to remove Python prompts
+   - Uses goroutines for concurrent output handling
 
-func (m *SessionManager) Get(id string) (*Session, bool) {
-    m.mu.RLock()
-    defer m.mu.RUnlock()
+3. Error Handling:
+   - Session expiration
+   - Execution timeouts
+   - Process and pipe creation failures
 
-    session, exists := m.sessions[id]
-    return session, exists
-}
-```
-
-CURRENT TESTS:
-```go
-package session
-
-import (
-    "testing"
-    "time"
-)
-
-func TestCreate(t *testing.T) {
-    manager := New()
-    session := manager.Create()
-
-    if manager.sessions[session.ID] != session {
-        t.Error("Expected session to be stored in sessions map")
-    }
-    if session.Process == nil {
-        t.Error("Expected running Python process")
-    }
-    if time.Since(session.CreatedAt) > time.Second {
-        t.Error("Expected CreatedAt to be recent")
-    }
-}
-
-func TestGet(t *testing.T) {
-    manager := New()
-    session := manager.Create()
-    _, exists := manager.Get(session.ID)
-    if !exists {
-        t.Error("Expected session to exist")
-    }
-}
-```
-
-PROJECT REQUIREMENTS:
-1. Resource Constraints:
-   - Process memory limit
-   - Session lifetime: 5 minutes (implemented)
-   - Individual code execution timeout: 2 seconds
-
-2. Session Management:
-   - UUIDs for session identification (implemented)
-   - Complete variable state within sessions
-   - Multiple concurrent sessions with isolation (implemented)
-   - Sessions persist for 5 minutes (implemented)
-   - Python standard library only
-
-3. API Design:
-   - Endpoint: /execute
-   - No immediate authentication
-   - JSON responses with:
-     - session_id (always present)
-     - stdout (successful execution)
-     - stderr (code errors)
-     - error (system errors like timeout, memory limit)
-
-CURRENT PROGRESS:
-- Implemented basic session management with UUIDs
-- Implemented concurrent access safety with RWMutex
+Test Coverage:
+The tests verify:
 - Basic session creation and retrieval
-- Session expiry time set to 5 minutes
-- Basic test coverage
+- Code execution with various inputs
+- Error conditions and timeout handling
+- State preservation between executions
+- Multi-line code execution
+- Output parsing and cleanup
 
-NEXT STEPS NEEDED:
-1. Implement Python process management:
-   - Start the interpreter process
-   - Handle stdin/stdout/stderr pipes
-   - Implement process cleanup
-   - Add error handling for process operations
+The code follows Go best practices for:
+- Concurrent access protection
+- Resource management
+- Error handling
+- Testing
 
-2. Implement code execution:
-   - Method to execute code in a session
-   - Capture output
-   - Implement 2-second timeout
-   - Handle memory limits
-
-3. Implement HTTP server using Gin:
-   - Set up routes
-   - Implement /execute endpoint
-   - Add error handling
-   - Structure JSON responses
-
-We are following Test-Driven Development (TDD) practices. The immediate next step is to implement proper Python process management and add error handling to the Create method.
-
-Please help continue the development from this point, focusing on proper error handling and Python process management. Please explain your reasoning and provide tests first, following TDD principles.
+Please analyze this code and provide insights on:
+1. Implementation correctness
+2. Potential improvements
+3. Security considerations
+4. Performance implications
+5. Error handling completeness

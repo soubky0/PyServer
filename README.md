@@ -6,8 +6,8 @@ A Python code execution sandbox server written in Go.
 
 ### Resource Constraints
 - [ ] Process memory limit
-- [ ] Session lifetime: 5 minutes
-- [ ] Individual code execution timeout: 2 seconds
+- [x] Session lifetime: 5 minutes
+- [x] Individual code execution timeout: 2 seconds
 
 ### Session Management
 - [x] UUIDs for session identification
@@ -27,38 +27,44 @@ A Python code execution sandbox server written in Go.
 ## Current Implementation
 
 ### Completed Features
-1. Basic session management
+1. Session Management
    - Session creation with UUID
    - Session retrieval by ID
    - Concurrent access handling with RWMutex
    - 5-minute session expiry time
 
+2. Process Management
+   - Python interpreter process management
+   - Stdin/stdout/stderr pipe handling
+   - 2-second execution timeout
+
+3. Code Execution
+   - Execute code in interactive Python session
+   - Separate stdout/stderr capture
+   - State preservation between executions
+   - Output cleaning (removal of Python prompts)
+
 ### Next Steps
-1. Process Management
-   - Start Python interpreter process
-   - Handle stdin/stdout/stderr pipes
-   - Process cleanup on session expiry
-
-2. Code Execution
-   - Implement code execution in session
-   - Capture output
-   - Implement timeout mechanism
-
-3. HTTP Server
+1. HTTP Server
    - Set up Gin framework
    - Implement /execute endpoint
    - Add error handling
+   - Structure JSON responses
 
-4. Testing
-   - Add more unit tests
+2. Resource Management
+   - Implement process memory limits
+   - Add process cleanup on session expiry
+
+3. Testing
    - Add integration tests
    - Add API tests
-   
+
 ## Development Progress
 - [x] Basic session management structure
 - [x] Session creation and retrieval
 - [x] Concurrent access safety
-- [ ] Process management
-- [ ] Code execution
+- [x] Process management
+- [x] Code execution
+- [x] Execution timeout
 - [ ] HTTP API
 - [ ] Resource constraints
