@@ -30,7 +30,6 @@ func TestCreate(t *testing.T) {
 func TestGet(t *testing.T) {
 	manager := New()
 
-	// Create a new session
 	session, err := manager.Create()
 
 	if err != nil {
