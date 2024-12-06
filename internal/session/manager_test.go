@@ -6,17 +6,20 @@ import (
 )
 
 func TestCreate(t *testing.T) {
-	// Initialize the session manager
 	manager := New()
 
-	// Create a new session
-	session := manager.Create()
+	session, err := manager.Create()
+
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	if session.Process == nil {
+		t.Error("Expected running Python process")
+	}
 
 	if manager.sessions[session.ID] != session {
 		t.Error("Expected session to be stored in sessions map")
-	}
-	if session.Process == nil {
-		t.Error("Expected running Python process")
 	}
 
 	if time.Since(session.CreatedAt) > time.Second {
@@ -28,11 +31,17 @@ func TestGet(t *testing.T) {
 	manager := New()
 
 	// Create a new session
-	session := manager.Create()
+	session, err := manager.Create()
 
-	_, exists := manager.Get(session.ID)
+	if err != nil {
+		t.Fatalf("Failed to create session: %v", err)
+	}
 
+	got, exists := manager.Get(session.ID)
 	if !exists {
 		t.Error("Expected session to exist")
+	}
+	if got != session {
+		t.Error("Expected to get same session instance")
 	}
 }

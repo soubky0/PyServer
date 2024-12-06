@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"os/exec"
 	"sync"
 	"time"
@@ -16,29 +17,35 @@ type Session struct {
 }
 
 type SessionManager struct {
-	sessions map[string]*Session
-	mu       sync.RWMutex
+	sessions   map[string]*Session
+	mu         sync.RWMutex
+	pythonPath string
 }
 
 func New() *SessionManager {
 	return &SessionManager{
-		sessions: make(map[string]*Session),
+		sessions:   make(map[string]*Session),
+		pythonPath: "python3",
 	}
 }
 
-func (m *SessionManager) Create() *Session {
+func (m *SessionManager) Create() (*Session, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	id := uuid.New().String()
+	cmd := exec.Command(m.pythonPath, "-iq")
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start Python process: %w", err)
+	}
 	session := &Session{
 		ID:        id,
-		Process:   exec.Command("python3", "-iq"),
+		Process:   cmd,
 		CreatedAt: time.Now(),
 		Expiry:    time.Now().Add(5 * time.Minute),
 	}
 	m.sessions[id] = session
-	return session
+	return session, nil
 }
 
 func (m *SessionManager) Get(id string) (*Session, bool) {
