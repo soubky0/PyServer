@@ -10,7 +10,7 @@ A Python code execution sandbox server written in Go.
 - [x] Parsing stdout and stderr
 - [x] Code execution
 - [x] Execution timeout
-- [ ] Memory constraints
+- [x] Memory constraints
 - [ ] File Access restrictions
 - [ ] Netowkr Access restrictions
 - [ ] Process cleanup
