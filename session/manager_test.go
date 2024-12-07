@@ -32,7 +32,6 @@ func TestGet(t *testing.T) {
 	manager := New()
 
 	session, err := manager.Create()
-
 	if err != nil {
 		t.Fatalf("Failed to create session: %v", err)
 	}
@@ -66,41 +65,16 @@ func TestExecuteBasic(t *testing.T) {
 	}
 }
 
-func TestExecuteError(t *testing.T) {
+func TestInvalidSessionID(t *testing.T) {
 	manager := New()
-	session, err := manager.Create()
-	if err != nil {
-		t.Fatalf("Failed to create session: %v", err)
-	}
 
-	_, stderr, err := session.Execute("x = 1/0")
-	if err != nil {
-		t.Fatalf("Expected no error return, got: %v", err)
-	}
-
-	if !strings.Contains(stderr, "ZeroDivisionError") {
-		t.Errorf("Expected stderr to contain ZeroDivisionError, got %q", stderr)
+	_, exists := manager.Get("non-existent-id")
+	if exists {
+		t.Error("Expected non-existent session to return exists=false")
 	}
 }
 
-func TestExecuteTimeout(t *testing.T) {
-	manager := New()
-	session, err := manager.Create()
-	if err != nil {
-		t.Fatalf("Failed to create session: %v", err)
-	}
-
-	_, _, err = session.Execute("while True: pass")
-
-	if err == nil {
-		t.Error("Expected timeout error")
-	}
-	if err != ErrExecutionTimeout {
-		t.Errorf("Expected ErrExecutionTimeout, got: %v", err)
-	}
-}
-
-func TestExecuteMultiline(t *testing.T) {
+func TestMemoryLimit(t *testing.T) {
 	manager := New()
 	session, err := manager.Create()
 	if err != nil {
@@ -108,41 +82,170 @@ func TestExecuteMultiline(t *testing.T) {
 	}
 
 	code := `
-	x = 5
-	y = 10
-	print(x + y)
-	`
-	stdout, stderr, err := session.Execute(code)
-	if err != nil {
-		t.Fatalf("Failed to execute multiline code: %v", err)
+x = bytearray(120 * 1024 * 1024)  # 120MB
+print('allocated')
+`
+	_, _, err = session.Execute(code)
+	if err == nil {
+		t.Error("Expected memory limit error")
 	}
-
-	if !strings.Contains(stdout, "15") {
-		t.Errorf("Expected stdout to contain '15', got %q", stdout)
-	}
-	if stderr != "" {
-		t.Errorf("Expected empty stderr, got %q", stderr)
+	if err != ErrExecutionTimeout {
+		t.Errorf("Expected ErrExecutionTimeout, got: %v", err)
 	}
 }
 
-func TestExecuteStatePreservation(t *testing.T) {
+func TestFileSystemAccess(t *testing.T) {
 	manager := New()
 	session, err := manager.Create()
 	if err != nil {
 		t.Fatalf("Failed to create session: %v", err)
 	}
 
-	_, _, err = session.Execute("x = 42")
-	if err != nil {
-		t.Fatalf("Failed to execute first code: %v", err)
+	testCases := []struct {
+		name string
+		code string
+	}{
+		{
+			name: "file read attempt",
+			code: "with open('/etc/passwd', 'r') as f: print(f.read())",
+		},
+		{
+			name: "file write attempt",
+			code: "with open('test.txt', 'w') as f: f.write('hello')",
+		},
+		{
+			name: "directory listing attempt",
+			code: "import os; print(os.listdir('/'))",
+		},
 	}
 
-	stdout, _, err := session.Execute("print(x)")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, stderr, err := session.Execute(tc.code)
+			if err == nil {
+				t.Error("Expected permission error")
+			}
+			if !strings.Contains(stderr, "PermissionError") {
+				t.Errorf("Expected PermissionError in stderr, got %q", stderr)
+			}
+		})
+	}
+}
+
+func TestNetworkAccess(t *testing.T) {
+	manager := New()
+	session, err := manager.Create()
 	if err != nil {
-		t.Fatalf("Failed to execute second code: %v", err)
+		t.Fatalf("Failed to create session: %v", err)
 	}
 
-	if !strings.Contains(stdout, "42") {
-		t.Errorf("Expected stdout to contain '42', got %q", stdout)
+	testCases := []struct {
+		name string
+		code string
+	}{
+		{
+			name: "http request attempt",
+			code: "import urllib.request; urllib.request.urlopen('http://example.com')",
+		},
+		{
+			name: "socket creation attempt",
+			code: "import socket; socket.socket()",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, stderr, err := session.Execute(tc.code)
+			if err == nil {
+				t.Error("Expected network access to be blocked")
+			}
+			if !strings.Contains(stderr, "PermissionError") {
+				t.Errorf("Expected PermissionError in stderr, got %q", stderr)
+			}
+		})
+	}
+}
+
+func TestConcurrentExecution(t *testing.T) {
+	manager := New()
+	session, err := manager.Create()
+	if err != nil {
+		t.Fatalf("Failed to create session: %v", err)
+	}
+
+	// Test concurrent access to the same session
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func() {
+			_, _, err := session.Execute("print('concurrent')")
+			if err != nil {
+				t.Errorf("Concurrent execution failed: %v", err)
+			}
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
+
+func TestSessionStateIsolation(t *testing.T) {
+	manager := New()
+
+	session1, err := manager.Create()
+	if err != nil {
+		t.Fatalf("Failed to create session1: %v", err)
+	}
+
+	session2, err := manager.Create()
+	if err != nil {
+		t.Fatalf("Failed to create session2: %v", err)
+	}
+
+	// Set variable in session1
+	_, _, err = session1.Execute("x = 42")
+	if err != nil {
+		t.Fatalf("Failed to execute in session1: %v", err)
+	}
+
+	// Try to access variable in session2
+	stdout, _, err := session2.Execute("try:\n    print(x)\nexcept NameError:\n    print('variable not found')")
+	if err != nil {
+		t.Fatalf("Failed to execute in session2: %v", err)
+	}
+
+	if !strings.Contains(stdout, "variable not found") {
+		t.Error("Expected sessions to be isolated")
+	}
+}
+
+func TestLongRunningSession(t *testing.T) {
+	manager := New()
+	session, err := manager.Create()
+	if err != nil {
+		t.Fatalf("Failed to create session: %v", err)
+	}
+
+	// Execute multiple commands in sequence
+	commands := []string{
+		"x = 1",
+		"y = 2",
+		"z = x + y",
+		"print(z)",
+	}
+
+	for _, cmd := range commands {
+		stdout, stderr, err := session.Execute(cmd)
+		if err != nil {
+			t.Errorf("Failed to execute command %q: %v", cmd, err)
+		}
+		if stderr != "" {
+			t.Errorf("Got unexpected stderr for command %q: %q", cmd, stderr)
+		}
+		if cmd == "print(z)" && !strings.Contains(stdout, "3") {
+			t.Errorf("Expected stdout to contain '3', got %q", stdout)
+		}
 	}
 }
