@@ -85,12 +85,9 @@ func TestMemoryLimit(t *testing.T) {
 x = bytearray(120 * 1024 * 1024)  # 120MB
 print('allocated')
 `
-	_, _, err = session.Execute(code)
-	if err == nil {
-		t.Error("Expected memory limit error")
-	}
-	if err != ErrExecutionTimeout {
-		t.Errorf("Expected ErrExecutionTimeout, got: %v", err)
+	_, stderr, _ := session.Execute(code)
+	if !strings.Contains(stderr, "MemoryError") {
+		t.Errorf("Expected MemoryError in stderr, got %q", stderr)
 	}
 }
 

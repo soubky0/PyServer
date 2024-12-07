@@ -46,7 +46,7 @@ func (m *SessionManager) Create() (*Session, error) {
 	defer m.mu.Unlock()
 
 	id := uuid.New().String()
-	cmd := exec.Command(m.pythonPath, "-iq")
+	cmd := exec.Command("bash", "-c", "ulimit -v 102400 && python3 -iq")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
