@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os/exec"
 	"strings"
@@ -15,8 +14,8 @@ import (
 )
 
 var (
-	ErrSessionExpired   = errors.New("session expired")
 	ErrExecutionTimeout = errors.New("execution timeout exceeded")
+	ErrSystemError      = errors.New("system error")
 )
 
 type Session struct {
@@ -29,15 +28,13 @@ type Session struct {
 	Stderr    io.ReadCloser
 }
 type SessionManager struct {
-	sessions   map[string]*Session
-	mu         sync.RWMutex
-	pythonPath string
+	sessions map[string]*Session
+	mu       sync.RWMutex
 }
 
 func New() *SessionManager {
 	return &SessionManager{
-		sessions:   make(map[string]*Session),
-		pythonPath: "python3",
+		sessions: make(map[string]*Session),
 	}
 }
 
@@ -49,19 +46,19 @@ func (m *SessionManager) Create() (*Session, error) {
 	cmd := exec.Command("bash", "-c", "ulimit -v 102400 && python3 -iq")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
+		return nil, ErrSystemError
 	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+		return nil, ErrSystemError
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
+		return nil, ErrSystemError
 	}
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start Python process: %w", err)
+		return nil, ErrSystemError
 	}
 	session := &Session{
 		ID:        id,
@@ -102,7 +99,7 @@ func (s *Session) Execute(code string) (stdout string, stderr string, err error)
 
 	codeWithMarker := code + "\nprint('__END__')"
 	if _, err := s.Stdin.Write([]byte(codeWithMarker + "\n")); err != nil {
-		return "", "", fmt.Errorf("failed to write to stdin: %w", err)
+		return "", "", ErrSystemError
 	}
 
 	var stdoutBuf, stderrBuf bytes.Buffer
@@ -133,7 +130,7 @@ func (s *Session) Execute(code string) (stdout string, stderr string, err error)
 	select {
 	case err := <-done:
 		if err != nil {
-			return "", "", fmt.Errorf("error reading output: %w", err)
+			return "", "", ErrSystemError
 		}
 	case <-ctx.Done():
 		return "", "", ErrExecutionTimeout

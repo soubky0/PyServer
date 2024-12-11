@@ -12,7 +12,7 @@ A Python code execution sandbox server written in Go.
 - [x] Execution timeout
 - [x] Memory constraints
 - [ ] File Access restrictions
-- [ ] Netowkr Access restrictions
+- [ ] Network Access restrictions
 - [ ] Process cleanup
 - [ ] Add process cleanup on session expiry
 - [ ] Memory management
